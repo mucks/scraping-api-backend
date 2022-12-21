@@ -1,0 +1,12 @@
+version: '3'
+
+services:
+  scraping-api-backend:
+    build: ./
+    image: mucks/scraping-api-backend
+    container_name: scraping-api-backend
+    environment:
+      AGENT_URL: ${AGENT_URL}
+      API_KEY: ${API_KEY}
+    ports:
+      - "3000:3000"

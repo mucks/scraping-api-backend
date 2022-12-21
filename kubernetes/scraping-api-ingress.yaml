@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: scraping-api
+  namespace: scraping-api
+spec:
+  rules:
+    - host: "scraping-api.mucks.dev"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: scraping-api-backend
+                port:
+                  number: 80
