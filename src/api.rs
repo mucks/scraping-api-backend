@@ -4,14 +4,37 @@ use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::po
 use hyper::{Body, Client, HeaderMap, Method, Request};
 
 #[derive(Clone)]
+struct Agent {
+    id: u32,
+    url: String,
+}
+
+#[derive(Clone)]
 struct AppState {
-    agent_url: String,
+    agents: Vec<Agent>,
     api_key: String,
 }
 
 pub fn router() -> Router {
+    let agent_urls = std::env::var("AGENT_URLS").expect("ENV 'AGENT_URLS' NOT FOUND!");
+    let agent_replicas: Vec<(&str, u32)> = agent_urls
+        .split(',')
+        .filter_map(|f| f.split_once("|replicas="))
+        .map(|(url, replicas)| (url, replicas.parse().unwrap_or(1)))
+        .collect();
+
+    let mut agents: Vec<Agent> = vec![];
+    for agent_replica in agent_replicas {
+        for i in 0..agent_replica.1 {
+            agents.push(Agent {
+                id: i,
+                url: agent_replica.0.into(),
+            });
+        }
+    }
+
     let state = AppState {
-        agent_url: std::env::var("AGENT_URL").expect("ENV 'AGENT_URL' NOT FOUND!"),
+        agents,
         api_key: std::env::var("API_KEY").expect("ENV 'API_KEY' NOT FOUND!"),
     };
 
@@ -21,6 +44,14 @@ pub fn router() -> Router {
         .with_state(state);
 
     Router::new().nest("/api/v1", api)
+}
+
+async fn hyper_get(url: &str) -> anyhow::Result<String> {
+    let client = Client::new();
+    let resp = client.get(url.parse()?).await?;
+    let body_bytes = hyper::body::to_bytes(resp.into_body()).await?;
+    let out = String::from_utf8(body_bytes.to_vec())?;
+    Ok(out)
 }
 
 async fn hyper_post(url: &str, request_body: &ScrapeRequestBody) -> anyhow::Result<String> {
@@ -50,6 +81,26 @@ fn check_api_key(state: &AppState, headers: HeaderMap) -> anyhow::Result<()> {
     Ok(())
 }
 
+async fn get_available_agent(state: &AppState) -> anyhow::Result<&Agent> {
+    let mut available_agents: Vec<&Agent> = vec![];
+
+    for agent in state.agents.iter() {
+        let is_busy = hyper_get(&format!("{}/is-busy", agent.url)).await?;
+        if is_busy == "false" {
+            available_agents.push(agent);
+        }
+    }
+
+    if available_agents.is_empty() {
+        return Err(anyhow!("NO AVAILABLE AGENTS"));
+    }
+
+    let index = rand::random::<usize>() % available_agents.len();
+    let agent = available_agents[index];
+
+    Ok(agent)
+}
+
 async fn scrape_template(
     headers: HeaderMap,
     state: AppState,
@@ -57,9 +108,10 @@ async fn scrape_template(
     js_enabled: bool,
 ) -> anyhow::Result<(StatusCode, String)> {
     check_api_key(&state, headers)?;
+    let agent = get_available_agent(&state).await?;
 
     let path = if js_enabled { "scrape-js" } else { "scrape" };
-    let url = format!("{}/{}", state.agent_url, path);
+    let url = format!("{}-{}/{}", agent.url, agent.id, path);
     tracing::info!("calling agent url: {}", url);
 
     let body = hyper_post(&url, &payload).await?;
