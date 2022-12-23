@@ -3,13 +3,13 @@ use anyhow::anyhow;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
 use hyper::{Body, Client, HeaderMap, Method, Request};
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct Agent {
     id: u32,
     url: String,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct AppState {
     agents: Vec<Agent>,
     api_key: String,
@@ -28,7 +28,7 @@ pub fn router() -> Router {
         for i in 0..agent_replica.1 {
             agents.push(Agent {
                 id: i,
-                url: agent_replica.0.into(),
+                url: format!("{}-{}", agent_replica.0, i),
             });
         }
     }
