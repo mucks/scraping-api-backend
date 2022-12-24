@@ -5,6 +5,7 @@ services:
     build: ./
     image: mucks/scraping-api-backend
     container_name: scraping-api-backend
+    restart: always
     environment:
       AGENT_URL: ${AGENT_URL}
       API_KEY: ${API_KEY}
