@@ -4,14 +4,13 @@ Api to scrape websites with either axios or chromium depending if js-support is 
 This makes use of my 'scraping-api-agent' which runs a node.js server with playwright installed,
 the agent runs behinh a vpn.
 
-Here is a simple flow chart:
 
 ```mermaid
 graph TD;
     User<-->API
-    API<-->Agent-1\nvpn-1;
-    API<-->Agent-2\nvpn-2;
-    API<-->Agent-3\nvpn-3;
+    API<-->Agent-1;
+    API<-->Agent-2;
+    API<-->Agent-3;
 ```
 
 # TODO
